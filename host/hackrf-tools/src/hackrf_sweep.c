@@ -173,6 +173,7 @@ int parse_u32_range(char* s, uint32_t* const value_min, uint32_t* const value_ma
 volatile bool do_exit = false;
 
 FILE* outfile = NULL;
+FILE* bindumpfile = NULL;
 volatile uint32_t byte_count = 0;
 volatile uint64_t sweep_count = 0;
 
@@ -245,6 +246,7 @@ int rx_callback(hackrf_transfer* transfer)
 	ifft_bins = fftSize * step_count;
 	for (j = 0; j < BLOCKS_PER_TRANSFER; j++) {
 		ubuf = (uint8_t*) buf;
+		fwrite(ubuf, BYTES_PER_BLOCK, 1, bindumpfile);
 		if (ubuf[0] == 0x7F && ubuf[1] == 0x7F) {
 			frequency = ((uint64_t) (ubuf[9]) << 56) |
 				((uint64_t) (ubuf[8]) << 48) |
@@ -748,6 +750,17 @@ int main(int argc, char** argv)
 		return EXIT_FAILURE;
 	}
 
+    bindumpfile = fopen("hackrfsweep.dump", "wb");
+    if (NULL == bindumpfile) {
+        fprintf(stderr, "failed to open hackrfsweep.dump\n");
+        return EXIT_FAILURE;
+    }
+    result = setvbuf(bindumpfile, NULL, _IOFBF, FD_BUFFER_SIZE);
+    if (result != 0) {
+       fprintf(stderr, "setvbuf() on hackrfsweep.dump failed: %d\n", result);
+       return EXIT_FAILURE;
+    }
+
 #ifdef _MSC_VER
 	SetConsoleCtrlHandler((PHANDLER_ROUTINE) sighandler, TRUE);
 #else
@@ -940,7 +953,8 @@ int main(int argc, char** argv)
 		hackrf_exit();
 		fprintf(stderr, "hackrf_exit() done\n");
 	}
-
+	fflush(bindumpfile);
+	fclose(bindumpfile);
 	fflush(outfile);
 	if ((outfile != NULL) && (outfile != stdout)) {
 		fclose(outfile);
